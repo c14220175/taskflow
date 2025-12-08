@@ -14,9 +14,7 @@ export default function CreateTaskForm({ userId }: { userId: string }) {
 
     let fileUrl = null
 
-    // 1. Logika Upload File 
     if (file) {
-      // Validasi ukuran < 5MB (5 * 1024 * 1024 bytes)
       if (file.size > 5000000) {
         alert('File terlalu besar! Maksimal 5MB.')
         setUploading(false)
@@ -35,7 +33,6 @@ export default function CreateTaskForm({ userId }: { userId: string }) {
         return
       }
       
-      // Dapatkan URL publik (jika bucket public) atau signed URL
       const { data: urlData } = supabase.storage
         .from('attachments')
         .getPublicUrl(fileName)
@@ -43,13 +40,12 @@ export default function CreateTaskForm({ userId }: { userId: string }) {
       fileUrl = urlData.publicUrl
     }
 
-    // 2. Insert ke Database
     const { error } = await supabase.from('tasks').insert({
       title,
       status: 'To Do',
       created_by: userId,
-      file_url: fileUrl, // Simpan link file
-      category: 'Work' // Contoh default
+      file_url: fileUrl,
+      category: 'Work'
     })
 
     if (!error) {
@@ -63,25 +59,30 @@ export default function CreateTaskForm({ userId }: { userId: string }) {
   }
 
   return (
-    <form onSubmit={handleCreateTask} className="p-4 border rounded">
+    <form onSubmit={handleCreateTask} className="flex flex-col gap-3">
       <input 
         type="text" 
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Judul Tugas" 
-        className="border p-2 w-full mb-2"
+        // UBAH: placeholder:text-gray-600 agar lebih gelap (terlihat hitam/abu tua), text-black untuk teks yang diketik
+        className="border border-gray-300 p-2 w-full rounded text-black placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         required 
       />
       
-      {/* Input File */}
       <input 
         type="file" 
         onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="mb-2"
-        accept=".pdf,.jpg,.png,.docx" // 
+        // UBAH: Pastikan text-black ada di sini untuk teks "No file chosen"
+        className="text-sm text-black file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        accept=".pdf,.jpg,.png,.docx" 
       />
 
-      <button disabled={uploading} type="submit" className="bg-blue-600 text-white p-2 rounded">
+      <button 
+        disabled={uploading} 
+        type="submit" 
+        className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors font-medium mt-2"
+      >
         {uploading ? 'Processing...' : 'Add Task'}
       </button>
     </form>

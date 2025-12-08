@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
-// Tipe data sesuai tabel
 type Task = {
   id: string
   title: string
@@ -14,7 +13,6 @@ export default function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const supabase = createClient()
 
-  // Fungsi fetch data awal
   const fetchTasks = async () => {
     const { data, error } = await supabase
       .from('tasks')
@@ -27,12 +25,10 @@ export default function TaskBoard() {
   useEffect(() => {
     fetchTasks()
 
-    // 1. Setup Real-time Listener 
     const channel = supabase
       .channel('tasks-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
         console.log('Change received!', payload)
-        // Refresh data ketika ada perubahan (insert/update/delete) dari user lain
         fetchTasks() 
       })
       .subscribe()
@@ -46,12 +42,14 @@ export default function TaskBoard() {
     <div className="grid grid-cols-3 gap-4">
       {['To Do', 'In Progress', 'Done'].map((status) => (
         <div key={status} className="bg-gray-100 p-4 rounded-lg">
-          <h2 className="font-bold mb-4">{status}</h2>
+          {/* UBAH: Tambahkan text-black */}
+          <h2 className="font-bold mb-4 text-black">{status}</h2>
           {tasks
             .filter((t) => t.status === status)
             .map((task) => (
               <div key={task.id} className="bg-white p-3 mb-2 shadow rounded">
-                <p className="font-semibold">{task.title}</p>
+                {/* UBAH: Tambahkan text-black */}
+                <p className="font-semibold text-black">{task.title}</p>
                 <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                   {task.category}
                 </span>
