@@ -1,22 +1,27 @@
 'use client'
-import { createClient } from '@/utils/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { signOut } from '@/app/login/actions'
 
 export default function SignOutButton() {
-  const router = useRouter()
-  const supabase = createClient()
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.refresh() // Refresh untuk trigger redirect di server
+    setIsLoading(true)
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Sign out error:', error)
+      setIsLoading(false)
+    }
   }
 
   return (
     <button 
       onClick={handleSignOut}
-      className="text-sm font-medium text-red-600 hover:text-red-800"
+      disabled={isLoading}
+      className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      Sign Out
+      {isLoading ? 'Signing out...' : 'Sign Out'}
     </button>
   )
 }

@@ -7,9 +7,13 @@ import { createClient } from '@/utils/supabase/server'
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // Mengambil data dari form
+  // Validasi input
   const email = formData.get('email') as string
   const password = formData.get('password') as string
+
+  if (!email || !password) {
+    return redirect('/login?error=Email and password are required')
+  }
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -18,7 +22,11 @@ export async function login(formData: FormData) {
 
   if (error) {
     console.error('Login Error:', error)
-    return redirect('/login?error=Could not authenticate user')
+    // Pesan error yang lebih user-friendly
+    const errorMessage = error.message === 'Invalid login credentials' 
+      ? 'Email atau password salah' 
+      : 'Gagal masuk, coba lagi'
+    return redirect(`/login?error=${encodeURIComponent(errorMessage)}`)
   }
 
   revalidatePath('/', 'layout')
@@ -31,10 +39,19 @@ export async function signup(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
   
+  // Validasi input
+  if (!email || !password) {
+    return redirect('/login?error=Email and password are required')
+  }
+
+  if (password.length < 6) {
+    return redirect('/login?error=Password must be at least 6 characters')
+  }
+  
   // Ambil nama dari email (sebagai default name untuk profil)
   const full_name = email.split('@')[0]
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -48,9 +65,24 @@ export async function signup(formData: FormData) {
 
   if (error) {
     console.error('Signup Error:', error)
-    return redirect('/login?error=Could not create user')
+    const errorMessage = error.message.includes('already registered') 
+      ? 'Email sudah terdaftar' 
+      : 'Gagal membuat akun, coba lagi'
+    return redirect(`/login?error=${encodeURIComponent(errorMessage)}`)
+  }
+
+  // Jika signup berhasil tapi perlu konfirmasi email
+  if (data.user && !data.session) {
+    return redirect('/login?message=Check your email to confirm your account')
   }
 
   revalidatePath('/', 'layout')
   redirect('/')
+}
+
+export async function signOut() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  revalidatePath('/', 'layout')
+  redirect('/login')
 }

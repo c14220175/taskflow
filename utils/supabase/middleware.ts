@@ -31,7 +31,20 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  // Dapatkan user dari session
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Jika user tidak ada dan bukan di halaman login, redirect ke login
+  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+    const redirectUrl = new URL('/login', request.url)
+    return NextResponse.redirect(redirectUrl)
+  }
+  
+  // Jika user ada dan di halaman login, redirect ke home
+  if (user && request.nextUrl.pathname.startsWith('/login')) {
+    const redirectUrl = new URL('/', request.url)
+    return NextResponse.redirect(redirectUrl)
+  }
 
   return response
 }
