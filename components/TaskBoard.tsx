@@ -31,36 +31,70 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
   const supabase = createClient()
 
   const fetchTasks = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) setCurrentUserId(user.id)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.log('No user found')
+        return
+      }
+      
+      setCurrentUserId(user.id)
+      console.log('Fetching tasks for user:', user.id)
 
-    let query = supabase
-      .from('tasks')
-      .select(`
-        *,
-        profiles:assigned_to(full_name)
-      `)
-      .order('created_at', { ascending: false })
+      // Test basic connection first
+      console.log('Testing database connection...')
+      
+      const { data: testData, error: testError } = await supabase
+        .from('tasks')
+        .select('count')
+        .limit(1)
+      
+      console.log('Connection test:', { testData, testError })
+      
+      if (testError) {
+        console.error('Connection failed:', testError)
+        alert('Database connection failed: ' + testError.message)
+        return
+      }
+      
+      // Simple query without joins
+      let query = supabase
+        .from('tasks')
+        .select('id, title, description, category, priority, status, due_date, created_at, created_by')
+        .order('created_at', { ascending: false })
 
-    // Apply filters
-    if (categoryFilter) {
-      query = query.eq('category', categoryFilter)
-    }
-    if (statusFilter) {
-      query = query.eq('status', statusFilter)
-    }
+      // Apply filters
+      if (categoryFilter) {
+        query = query.eq('category', categoryFilter)
+      }
+      if (statusFilter) {
+        query = query.eq('status', statusFilter)
+      }
 
-    const { data, error } = await query
-    
-    if (data) {
-      // Apply search filter
-      const filteredTasks = searchQuery 
-        ? data.filter(task => 
-            task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            task.description?.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        : data
-      setTasks(filteredTasks)
+      const { data, error } = await query
+      
+      if (error) {
+        console.error('Database error:', error)
+        alert('Error loading tasks: ' + error.message)
+        return
+      }
+      
+      console.log('Raw tasks data:', data)
+      
+      if (data) {
+        // Apply search filter
+        const filteredTasks = searchQuery 
+          ? data.filter(task => 
+              task.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+          : data
+        setTasks(filteredTasks)
+        console.log('Setting tasks:', filteredTasks.length, 'tasks')
+      }
+    } catch (err) {
+      console.error('Fetch tasks error:', err)
+      alert('Failed to load tasks')
     }
   }
 
@@ -222,9 +256,25 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                       )}
                       
                       {task.due_date && (
-                        <p className="text-xs text-gray-500 mb-2">
-                          Due: {new Date(task.due_date).toLocaleDateString()}
-                        </p>
+                        <div className="text-xs mb-2">
+                          <span className="text-gray-500">Deadline: </span>
+                          <span className={`font-medium ${
+                            new Date(task.due_date) < new Date() 
+                              ? 'text-red-600' 
+                              : new Date(task.due_date).toDateString() === new Date().toDateString()
+                              ? 'text-orange-600'
+                              : 'text-green-600'
+                          }`}>
+                            {new Date(task.due_date).toLocaleDateString('id-ID', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                            {new Date(task.due_date) < new Date() && ' (Overdue)'}
+                            {new Date(task.due_date).toDateString() === new Date().toDateString() && ' (Today)'}
+                          </span>
+                        </div>
                       )}
                       
                       {task.attachment_name && (

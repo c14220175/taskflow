@@ -34,22 +34,45 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
   const supabase = createClient()
 
   const fetchTeams = async () => {
-    const { data, error } = await supabase
-      .from('teams')
-      .select(`
-        *,
-        team_members (
-          user_id,
-          role,
-          profiles (
-            full_name,
-            avatar_url
-          )
-        )
-      `)
-      .order('created_at', { ascending: false })
+    try {
+      console.log('Fetching teams...')
+      
+      // Simple query first
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    if (data) setTeams(data)
+      console.log('Teams fetch result:', { data, error })
+
+      if (error) {
+        console.error('Error fetching teams:', error)
+        alert('Failed to load teams: ' + error.message)
+        return
+      }
+
+      if (data) {
+        // Fetch team members separately
+        const teamsWithMembers = await Promise.all(
+          data.map(async (team) => {
+            const { data: members } = await supabase
+              .from('team_members')
+              .select('user_id, role')
+              .eq('team_id', team.id)
+            
+            return {
+              ...team,
+              team_members: members || []
+            }
+          })
+        )
+        
+        setTeams(teamsWithMembers)
+        console.log('Teams with members:', teamsWithMembers)
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching teams:', error)
+    }
   }
 
   const createTeam = async (e: React.FormEvent) => {
@@ -59,37 +82,56 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(true)
     
     try {
-      // Create team
+      console.log('Creating team with data:', {
+        name: newTeamName.trim(),
+        description: newTeamDescription.trim(),
+        created_by: userId
+      })
+      
+      // Create team (without description for now)
       const { data: team, error: teamError } = await supabase
         .from('teams')
         .insert({
           name: newTeamName.trim(),
-          description: newTeamDescription.trim(),
           created_by: userId
         })
         .select()
         .single()
 
-      if (teamError) throw teamError
+      console.log('Team creation result:', { team, teamError })
+
+      if (teamError) {
+        console.error('Team creation error:', teamError)
+        alert('Failed to create team: ' + teamError.message)
+        return
+      }
 
       // Add creator as admin
-      const { error: memberError } = await supabase
+      const { data: member, error: memberError } = await supabase
         .from('team_members')
         .insert({
           team_id: team.id,
           user_id: userId,
           role: 'admin'
         })
+        .select()
 
-      if (memberError) throw memberError
+      console.log('Member creation result:', { member, memberError })
+
+      if (memberError) {
+        console.error('Member creation error:', memberError)
+        alert('Team created but failed to add you as admin: ' + memberError.message)
+      } else {
+        alert('Team created successfully!')
+      }
 
       setNewTeamName('')
       setNewTeamDescription('')
       setShowCreateForm(false)
       fetchTeams()
     } catch (error) {
-      console.error('Error creating team:', error)
-      alert('Failed to create team')
+      console.error('Unexpected error creating team:', error)
+      alert('Failed to create team: ' + error.message)
     }
     
     setLoading(false)
@@ -162,13 +204,9 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
               className="w-full p-3 border border-gray-300 rounded-lg text-black"
               required
             />
-            <textarea
-              placeholder="Team description (optional)"
-              value={newTeamDescription}
-              onChange={(e) => setNewTeamDescription(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg text-black"
-              rows={3}
-            />
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <p className="text-sm text-gray-600">Team description feature coming soon</p>
+            </div>
             <div className="flex gap-2">
               <button
                 type="submit"
@@ -229,9 +267,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             <div className="flex justify-between items-start mb-3">
               <div>
                 <h3 className="font-semibold text-black">{team.name}</h3>
-                {team.description && (
-                  <p className="text-sm text-gray-600 mt-1">{team.description}</p>
-                )}
+                <p className="text-sm text-gray-600 mt-1">Team ID: {team.id}</p>
               </div>
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <Users size={12} />

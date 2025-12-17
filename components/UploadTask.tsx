@@ -24,18 +24,39 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
   // Fetch teams and team members
   useEffect(() => {
     const fetchTeams = async () => {
-      const { data } = await supabase
-        .from('teams')
-        .select(`
-          id, name,
-          team_members (
-            user_id,
-            profiles (
-              id, full_name, email
-            )
+      try {
+        // Simple teams query
+        const { data: teamsData, error: teamsError } = await supabase
+          .from('teams')
+          .select('id, name')
+        
+        if (teamsError) {
+          console.error('Error fetching teams:', teamsError)
+          return
+        }
+        
+        if (teamsData) {
+          // Fetch team members separately
+          const teamsWithMembers = await Promise.all(
+            teamsData.map(async (team) => {
+              const { data: members } = await supabase
+                .from('team_members')
+                .select('user_id')
+                .eq('team_id', team.id)
+              
+              return {
+                ...team,
+                team_members: members || []
+              }
+            })
           )
-        `)
-      if (data) setTeams(data)
+          
+          setTeams(teamsWithMembers)
+          console.log('Teams loaded:', teamsWithMembers)
+        }
+      } catch (error) {
+        console.error('Error in fetchTeams:', error)
+      }
     }
     fetchTeams()
   }, [])
@@ -91,21 +112,45 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
     setIsLoading(true)
     
     try {
+      console.log('Creating task with data:', {
+        title: title.trim(),
+        description: description.trim() || null,
+        category,
+        priority,
+        due_date: dueDate || null,
+        created_by: userId,
+        assigned_to: assignedTo || null,
+        team_id: teamId || null,
+        status: 'To Do'
+      })
+      
       let attachmentUrl = null
       let attachmentName = null
       
-      // Upload file if exists
-      if (file) {
-        const { fileName, filePath } = await uploadFile(file)
-        const { data } = supabase.storage
-          .from('task-attachments')
-          .getPublicUrl(filePath)
-        
-        attachmentUrl = data.publicUrl
-        attachmentName = file.name
+      // Skip file upload for now to test basic functionality
+      // if (file) {
+      //   const { fileName, filePath } = await uploadFile(file)
+      //   const { data } = supabase.storage
+      //     .from('task-attachments')
+      //     .getPublicUrl(filePath)
+      //   
+      //   attachmentUrl = data.publicUrl
+      //   attachmentName = file.name
+      // }
+      
+      // Test if table exists first
+      const { data: tableTest, error: tableError } = await supabase
+        .from('tasks')
+        .select('count')
+        .limit(1)
+      
+      if (tableError) {
+        console.error('Table access error:', tableError)
+        alert('Cannot access tasks table: ' + tableError.message)
+        return
       }
       
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tasks')
         .insert({
           title: title.trim(),
@@ -113,15 +158,20 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
           category,
           priority,
           due_date: dueDate || null,
-          attachment_url: attachmentUrl,
-          attachment_name: attachmentName,
           created_by: userId,
           assigned_to: assignedTo || null,
           team_id: teamId || null,
           status: 'To Do'
         })
+        .select()
 
-      if (!error) {
+      console.log('Insert result:', { data, error })
+
+      if (error) {
+        console.error('Database insert error:', error)
+        alert('Gagal membuat task: ' + error.message)
+      } else {
+        console.log('Task created successfully:', data)
         // Reset form
         setTitle('')
         setDescription('')
@@ -131,10 +181,11 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
         setFile(null)
         setAssignedTo('')
         setTeamId('')
+        alert('Task berhasil dibuat!')
       }
     } catch (error) {
-      console.error('Error creating task:', error)
-      alert('Failed to create task')
+      console.error('Unexpected error:', error)
+      alert('Failed to create task: ' + error.message)
     }
     
     setIsLoading(false)
@@ -191,13 +242,18 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
       </div>
       
       <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Due Date (Optional)
+        </label>
         <input
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
+          min={new Date().toISOString().split('T')[0]}
           className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
           disabled={isLoading}
         />
+        <p className="text-xs text-gray-500 mt-1">Pilih tanggal deadline untuk task ini</p>
       </div>
       
       {/* Team Selection */}
@@ -235,7 +291,7 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
             <option value="">Unassigned</option>
             {teamMembers.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.profiles?.full_name || member.profiles?.email || 'Unknown'}
+                {member.profiles?.full_name || member.profiles?.email || 'Team Member'}
               </option>
             ))}
           </select>
