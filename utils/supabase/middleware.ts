@@ -34,14 +34,14 @@ export async function updateSession(request: NextRequest) {
   // Dapatkan user dari session
   const { data: { user } } = await supabase.auth.getUser()
   
-  // Jika user tidak ada dan bukan di halaman login, redirect ke login
-  if (!user && !request.nextUrl.pathname.startsWith('/login')) {
+  // Jika user tidak ada dan bukan di halaman login/signup, redirect ke login
+  if (!user && !request.nextUrl.pathname.startsWith('/login') && !request.nextUrl.pathname.startsWith('/signup')) {
     const redirectUrl = new URL('/login', request.url)
     return NextResponse.redirect(redirectUrl)
   }
   
-  // Jika user ada dan di halaman login, redirect ke home
-  if (user && request.nextUrl.pathname.startsWith('/login')) {
+  // Jika user ada dan di halaman login, redirect ke home (tapi tidak untuk signup)
+  if (user && request.nextUrl.pathname.startsWith('/login') && !request.nextUrl.pathname.startsWith('/signup')) {
     const redirectUrl = new URL('/', request.url)
     return NextResponse.redirect(redirectUrl)
   }

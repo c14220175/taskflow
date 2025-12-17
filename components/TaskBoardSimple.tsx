@@ -13,8 +13,6 @@ type Task = {
   assigned_to?: string
   created_by: string
   due_date?: string
-  attachment_url?: string
-  attachment_name?: string
   profiles?: { full_name: string }
 }
 
@@ -225,12 +223,6 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                         <p className="text-xs text-gray-500 mb-2">
                           Due: {new Date(task.due_date).toLocaleDateString()}
                         </p>
-                      )}
-                      
-                      {task.attachment_name && (
-                        <div className="text-xs text-blue-600 mb-2">
-                          📎 {task.attachment_name}
-                        </div>
                       )}
                       
                       {/* Status Change Buttons */}

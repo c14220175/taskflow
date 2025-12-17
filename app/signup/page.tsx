@@ -1,4 +1,4 @@
-import { login } from './actions'
+import { signup } from './actions'
 import Link from 'next/link'
 
 type SearchParams = Promise<{
@@ -10,7 +10,7 @@ type Props = {
   searchParams?: SearchParams
 }
 
-export default async function LoginPage({ searchParams }: Props) {
+export default async function SignupPage({ searchParams }: Props) {
   const params = await searchParams || {};
   const errorMessage = params.error;
   const successMessage = params.message;
@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: Props) {
       <div className="w-full max-w-md space-y-8 bg-white p-8 shadow rounded-xl">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">TaskFlow</h2>
-          <p className="mt-2 text-sm text-gray-600">Masuk untuk mengelola tugas tim Anda</p>
+          <p className="mt-2 text-sm text-gray-600">Daftar akun baru untuk memulai</p>
         </div>
         
         {/* Error/Success Messages */}
@@ -57,29 +57,39 @@ export default async function LoginPage({ searchParams }: Props) {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 required
                 minLength={6}
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"
                 className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 sm:text-sm invalid:border-red-500"
-                placeholder="Minimal 6 karakter"
-                title="Password minimal 6 karakter"
+                placeholder="Min 6 karakter, huruf besar, kecil, angka"
+                title="Password harus minimal 6 karakter dengan huruf besar, kecil, dan angka"
               />
+            </div>
+            <div className="text-xs text-gray-600">
+              <p>Password harus mengandung:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Minimal 6 karakter</li>
+                <li>Huruf besar (A-Z)</li>
+                <li>Huruf kecil (a-z)</li>
+                <li>Angka (0-9)</li>
+              </ul>
             </div>
           </div>
 
           <button
-            formAction={login}
+            formAction={signup}
             type="submit"
             className="group relative flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
           >
-            Sign in
+            Sign up
           </button>
           
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Belum punya akun?{' '}
-              <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
-                Sign up
+              Sudah punya akun?{' '}
+              <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                Sign in
               </Link>
             </p>
           </div>
