@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { redirect } from 'next/navigation'
 import TeamManagement from '@/components/TeamManagement'
+import Inbox from '@/components/Inbox'
 import SignOutButton from '@/components/SignOutButton'
 import Link from 'next/link'
 
@@ -62,7 +63,17 @@ export default function TeamsPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <TeamManagement userId={user.id} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <TeamManagement userId={user.id} />
+          </div>
+          
+          <div className="lg:col-span-1">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <Inbox userId={user.id} userEmail={user.email} />
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   )

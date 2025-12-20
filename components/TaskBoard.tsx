@@ -45,10 +45,11 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
       setCurrentUserId(user.id)
       console.log('Fetching tasks for user:', user.id)
 
-      // Query sederhana tanpa join
+      // Query hanya tasks yang dibuat oleh user yang sedang login
       let query = supabase
         .from('tasks')
         .select('*')
+        .eq('created_by', user.id) // Filter hanya tasks user ini
         .order('created_at', { ascending: false })
 
       // Apply filters
@@ -282,9 +283,11 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                       
                       <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
                         <User size={12} />
-                        <span>Created by: {task.creator_profile?.full_name || 'Unknown'}</span>
                         {task.assigned_profile?.full_name && (
-                          <span className="ml-2">• Assigned to: {task.assigned_profile.full_name}</span>
+                          <span>Assigned to: {task.assigned_profile.full_name}</span>
+                        )}
+                        {!task.assigned_profile?.full_name && (
+                          <span>Personal Task</span>
                         )}
                       </div>
                       

@@ -31,6 +31,8 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
   const [teams, setTeams] = useState<Team[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showJoinForm, setShowJoinForm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [newTeamName, setNewTeamName] = useState('')
   const [newTeamDescription, setNewTeamDescription] = useState('')
   const [joinTeamId, setJoinTeamId] = useState('')
@@ -46,26 +48,40 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         .limit(1)
       
       if (tableError) {
-        // Teams table doesn't exist, silently disable teams feature
         setTeams([])
         return
       }
       
-      // Simple query first
-      const { data, error } = await supabase
+      // Fetch teams yang dibuat oleh user (creator)
+      const { data: createdTeams, error: createdError } = await supabase
         .from('teams')
         .select('*')
+        .eq('created_by', userId)
         .order('created_at', { ascending: false })
-
-      if (error) {
-        setTeams([])
-        return
+      
+      // Fetch teams yang user ikuti sebagai member
+      const { data: memberTeams, error: memberError } = await supabase
+        .from('team_members')
+        .select(`
+          team_id,
+          teams(*)
+        `)
+        .eq('user_id', userId)
+      
+      // Gabungkan teams
+      const allTeams = [...(createdTeams || [])]
+      if (memberTeams) {
+        memberTeams.forEach(mt => {
+          if (mt.teams && !allTeams.find(t => t.id === mt.teams.id)) {
+            allTeams.push(mt.teams)
+          }
+        })
       }
 
-      if (data) {
+      if (allTeams.length > 0) {
         // Fetch team members and leader info separately
         const teamsWithMembers = await Promise.all(
-          data.map(async (team) => {
+          allTeams.map(async (team) => {
             // Get team members
             const { data: members } = await supabase
               .from('team_members')
@@ -86,7 +102,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
               ...team,
               team_members: members || [],
               leader_profile: {
-                full_name: leaderProfile?.full_name || 'task0', // fallback untuk task0@gmail.com
+                full_name: leaderProfile?.full_name || 'task0',
                 email: leaderProfile?.email || 'unknown@email.com'
               }
             }
@@ -94,6 +110,8 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         )
         
         setTeams(teamsWithMembers)
+      } else {
+        setTeams([])
       }
     } catch (error) {
       setTeams([])
@@ -149,28 +167,68 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(false)
   }
 
-  const joinTeam = async (e: React.FormEvent) => {
+  const inviteCollaborator = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!joinTeamId.trim()) return
 
     setLoading(true)
     
     try {
+      // Check if email exists in auth.users
+      const { data: userData } = await supabase.auth.admin.listUsers()
+      const userExists = userData?.users?.find(u => u.email === joinTeamId.trim())
+      
+      if (!userExists) {
+        alert('User with this email is not registered yet.')
+        setLoading(false)
+        return
+      }
+
+      // Send invitation
       const { error } = await supabase
-        .from('team_members')
+        .from('team_invitations')
         .insert({
-          team_id: joinTeamId.trim(),
-          user_id: userId,
-          role: 'member'
+          team_id: teams[0]?.id, // For now, invite to first team
+          invited_email: joinTeamId.trim(),
+          invited_by: userId,
+          status: 'pending'
         })
 
       if (error) throw error
 
+      alert('Invitation sent successfully!')
       setJoinTeamId('')
       setShowJoinForm(false)
+    } catch (error) {
+      alert('Failed to send invitation.')
+    }
+    
+    setLoading(false)
+  }
+
+  const deleteTeam = async (teamId: string, teamName: string) => {
+    if (deleteConfirmText !== teamName) {
+      alert(`Please type "${teamName}" to confirm deletion.`)
+      return
+    }
+
+    setLoading(true)
+    
+    try {
+      const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', teamId)
+        .eq('created_by', userId) // Extra security check
+
+      if (error) throw error
+
+      alert('Team deleted successfully!')
+      setShowDeleteConfirm(null)
+      setDeleteConfirmText('')
       fetchTeams()
     } catch (error) {
-      alert('Failed to join team. Please check the team ID.')
+      alert('Failed to delete team.')
     }
     
     setLoading(false)
@@ -197,7 +255,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
           >
             <UserPlus size={16} />
-            Join Team
+            Invite Collaborator
           </button>
         </div>
       </div>
@@ -238,14 +296,14 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         </div>
       )}
 
-      {/* Join Team Form */}
+      {/* Invite Collaborator Form */}
       {showJoinForm && (
         <div className="bg-white p-4 rounded-lg shadow border">
-          <h3 className="font-semibold text-black mb-4">Join Existing Team</h3>
-          <form onSubmit={joinTeam} className="space-y-4">
+          <h3 className="font-semibold text-black mb-4">Invite Collaborator</h3>
+          <form onSubmit={inviteCollaborator} className="space-y-4">
             <input
-              type="text"
-              placeholder="Team ID"
+              type="email"
+              placeholder="Collaborator email"
               value={joinTeamId}
               onChange={(e) => setJoinTeamId(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-lg text-black"
@@ -257,7 +315,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
                 disabled={loading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
-                {loading ? 'Joining...' : 'Join'}
+                {loading ? 'Sending...' : 'Send Invitation'}
               </button>
               <button
                 type="button"
@@ -268,6 +326,47 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Delete Team Confirmation */}
+      {showDeleteConfirm && (
+        <div className="bg-white p-4 rounded-lg shadow border border-red-200">
+          <h3 className="font-semibold text-red-800 mb-4">Delete Team</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This action cannot be undone. This will permanently delete the team and remove all members.
+          </p>
+          <p className="text-sm font-medium text-gray-700 mb-2">
+            Type the team name to confirm:
+          </p>
+          <input
+            type="text"
+            placeholder={teams.find(t => t.id === showDeleteConfirm)?.name}
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-lg text-black mb-4"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const team = teams.find(t => t.id === showDeleteConfirm)
+                if (team) deleteTeam(team.id, team.name)
+              }}
+              disabled={loading}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {loading ? 'Deleting...' : 'Delete Team'}
+            </button>
+            <button
+              onClick={() => {
+                setShowDeleteConfirm(null)
+                setDeleteConfirmText('')
+              }}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -290,6 +389,12 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             
             <div className="text-xs text-gray-500 mb-3">
               Team ID: {team.id}
+              <button
+                onClick={() => setShowDeleteConfirm(team.id)}
+                className="ml-4 text-red-600 hover:text-red-800 underline"
+              >
+                Delete Team
+              </button>
             </div>
             
             {/* Team Members */}
