@@ -31,16 +31,19 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
 
   const fetchInvitations = async () => {
     try {
-      const { data } = await supabase
+      console.log('Fetching invitations for email:', userEmail) // Debug log
+      
+      const { data, error } = await supabase
         .from('team_invitations')
         .select(`
           *,
-          teams(name),
-          inviter_profile:invited_by(full_name, email)
+          teams(name)
         `)
         .eq('invited_email', userEmail)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
+
+      console.log('Invitations query result:', { data, error }) // Debug log
 
       if (data) {
         setInvitations(data)
@@ -115,7 +118,7 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
                 Invitation to join "{invitation.teams?.name}"
               </h4>
               <p className="text-sm text-gray-600 mt-1">
-                From: {invitation.inviter_profile?.full_name || invitation.inviter_profile?.email}
+                From: Team Leader
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 {new Date(invitation.created_at).toLocaleDateString()}

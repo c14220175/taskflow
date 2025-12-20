@@ -174,34 +174,10 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(true)
     
     try {
-      // Check if email exists using RPC function
-      const { data: userExists, error: userError } = await supabase.rpc('check_user_exists', {
-        email_to_check: inviteEmail.trim()
-      })
+      console.log('Inviting email:', inviteEmail.trim(), 'to team:', teamId)
       
-      if (userError || !userExists) {
-        alert('User with this email is not registered yet.')
-        setLoading(false)
-        return
-      }
-
-      // Check if already invited or member
-      const { data: existingInvite } = await supabase
-        .from('team_invitations')
-        .select('id')
-        .eq('team_id', teamId)
-        .eq('invited_email', inviteEmail.trim())
-        .eq('status', 'pending')
-        .single()
-      
-      if (existingInvite) {
-        alert('User already has a pending invitation to this team.')
-        setLoading(false)
-        return
-      }
-
-      // Send invitation
-      const { error } = await supabase
+      // Simplified approach - just send invitation without complex checks
+      const { data: insertData, error: insertError } = await supabase
         .from('team_invitations')
         .insert({
           team_id: teamId,
@@ -209,13 +185,22 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
           invited_by: userId,
           status: 'pending'
         })
+        .select()
 
-      if (error) throw error
+      console.log('Insert invitation result:', { insertData, insertError })
+
+      if (insertError) {
+        console.error('Insert error details:', insertError)
+        alert('Failed to send invitation: ' + insertError.message)
+        setLoading(false)
+        return
+      }
 
       alert('Invitation sent successfully!')
       setInviteEmail('')
       setShowInviteForm(null)
     } catch (error) {
+      console.error('Invite error:', error)
       alert('Failed to send invitation.')
     }
     
