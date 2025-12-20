@@ -136,22 +136,24 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(true)
     
     try {
+      const emailToInvite = inviteEmail.trim().toLowerCase()
+
       const { error: insertError } = await supabase
         .from('team_invitations')
         .insert({
           team_id: teamId,
-          invited_email: inviteEmail.trim(),
+          invited_email: emailToInvite,
           invited_by: userId,
           status: 'pending'
         })
 
       if (insertError) throw insertError
 
-      alert('Invitation sent successfully!')
+      alert('Undangan berhasil dikirim ke ' + emailToInvite)
       setInviteEmail('')
       setShowInviteForm(null)
-    } catch (error) {
-      alert('Failed to send invitation.')
+    } catch (error: any) {
+      alert('Gagal mengirim undangan: ' + error.message)
     }
     setLoading(false)
   }
