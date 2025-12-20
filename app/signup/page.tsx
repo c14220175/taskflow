@@ -35,7 +35,7 @@ export default async function SignupPage({ searchParams }: Props) {
           </div>
         )}
         
-        <form className="mt-8 space-y-6" noValidate>
+        <form className="mt-8 space-y-6">
           <div className="space-y-4">
             <div>
               <label htmlFor="email-address" className="block text-sm font-medium text-gray-700">Email *</label>
@@ -43,12 +43,9 @@ export default async function SignupPage({ searchParams }: Props) {
                 id="email-address"
                 name="email"
                 type="email"
-                autoComplete="email"
                 required
-                pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
-                className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 sm:text-sm invalid:border-red-500"
+                className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 sm:text-sm"
                 placeholder="contoh@email.com"
-                title="Masukkan email yang valid"
               />
             </div>
             <div>
@@ -57,23 +54,11 @@ export default async function SignupPage({ searchParams }: Props) {
                 id="password"
                 name="password"
                 type="password"
-                autoComplete="new-password"
                 required
                 minLength={6}
-                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"
-                className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 sm:text-sm invalid:border-red-500"
-                placeholder="Min 6 karakter, huruf besar, kecil, angka"
-                title="Password harus minimal 6 karakter dengan huruf besar, kecil, dan angka"
+                className="mt-1 block w-full rounded-md border border-gray-300 py-2 px-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600 sm:text-sm"
+                placeholder="Minimal 6 karakter"
               />
-            </div>
-            <div className="text-xs text-gray-600">
-              <p>Password harus mengandung:</p>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Minimal 6 karakter</li>
-                <li>Huruf besar (A-Z)</li>
-                <li>Huruf kecil (a-z)</li>
-                <li>Angka (0-9)</li>
-              </ul>
             </div>
           </div>
 
