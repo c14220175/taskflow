@@ -1,0 +1,57 @@
+-- ORIGINAL WORKING DATABASE SCHEMA
+-- Kembalikan ke versi awal yang berjalan lancar
+
+-- 1. DROP SEMUA
+DROP TABLE IF EXISTS tasks CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS teams CASCADE;
+DROP TABLE IF EXISTS team_members CASCADE;
+DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
+
+-- 2. BUAT TABEL PROFILES
+CREATE TABLE profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  full_name TEXT,
+  avatar_url TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. BUAT TABEL TASKS
+CREATE TABLE tasks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT DEFAULT 'To Do',
+  category TEXT DEFAULT 'Personal',
+  priority TEXT DEFAULT 'Medium',
+  due_date DATE,
+  created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  assigned_to UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. ENABLE RLS TAPI PERMISIF
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+
+-- 5. POLICY PERMISIF - SEMUA USER BISA LIHAT SEMUA
+CREATE POLICY "profiles_all" ON profiles FOR ALL USING (true);
+CREATE POLICY "tasks_all" ON tasks FOR ALL USING (true);
+
+-- 6. FUNCTION AUTO-CREATE PROFILE
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (id, full_name)
+  VALUES (NEW.id, split_part(NEW.email, '@', 1));
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 7. TRIGGER AUTO-CREATE PROFILE
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();

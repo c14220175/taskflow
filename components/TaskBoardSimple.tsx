@@ -13,7 +13,12 @@ type Task = {
   assigned_to?: string
   created_by: string
   due_date?: string
-  profiles?: { full_name: string }
+  attachment_url?: string
+  attachment_name?: string
+  team_id?: string
+  assigned_profile?: { full_name: string }
+  creator_profile?: { full_name: string }
+  team?: { name: string }
 }
 
 type TaskBoardProps = {
@@ -34,12 +39,10 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
     const { data: { user } } = await supabase.auth.getUser()
     if (user) setCurrentUserId(user.id)
 
+    // Query sederhana tanpa join
     let query = supabase
       .from('tasks')
-      .select(`
-        *,
-        profiles:assigned_to(full_name)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
     // Apply filters
@@ -56,13 +59,54 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
     const { data, error } = await query
     
     if (data) {
+      console.log('Raw tasks data:', data) // Debug: lihat data mentah
+      
+      // Ambil profile data terpisah
+      const userIds = [...new Set([...data.map(t => t.created_by), ...data.map(t => t.assigned_to)].filter(Boolean))]
+      
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds)
+      
+      // Ambil team data terpisah
+      const teamIds = [...new Set(data.map(t => t.team_id).filter(Boolean))]
+      console.log('Team IDs found:', teamIds) // Debug: lihat team IDs
+      
+      const { data: teams } = teamIds.length > 0 ? await supabase
+        .from('teams')
+        .select('id, name')
+        .in('id', teamIds) : { data: [] }
+      
+      console.log('Teams data:', teams) // Debug: lihat data teams
+      
+      // Gabungkan data dengan fallback ke email
+      const tasksWithProfiles = data.map(task => {
+        const creatorProfile = profiles?.find(p => p.id === task.created_by)
+        const assignedProfile = profiles?.find(p => p.id === task.assigned_to)
+        const teamInfo = teams?.find(t => t.id === task.team_id)
+        
+        return {
+          ...task,
+          creator_profile: {
+            full_name: creatorProfile?.full_name || 'task0'
+          },
+          assigned_profile: assignedProfile ? {
+            full_name: assignedProfile.full_name || 'Unknown'
+          } : null,
+          team: teamInfo || null
+        }
+      })
+      
+      console.log('Tasks with profiles and teams:', tasksWithProfiles) // Debug: lihat hasil akhir
+      
       // Apply search filter
       let filteredTasks = searchQuery 
-        ? data.filter(task => 
+        ? tasksWithProfiles.filter(task => 
             task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             task.description?.toLowerCase().includes(searchQuery.toLowerCase())
           )
-        : data
+        : tasksWithProfiles
       
       // Apply sorting
       if (sortFilter) {
@@ -236,19 +280,38 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                         <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
+                        {task.team && (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                            🏢 {task.team.name}
+                          </span>
+                        )}
                       </div>
                       
-                      {task.profiles?.full_name && (
-                        <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
-                          <User size={12} />
-                          {task.profiles.full_name}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
+                        <User size={12} />
+                        <span>Created by: {task.creator_profile?.full_name || 'Unknown'}</span>
+                        {task.assigned_profile?.full_name && (
+                          <span className="ml-2">• Assigned to: {task.assigned_profile.full_name}</span>
+                        )}
+                      </div>
                       
                       {task.due_date && (
                         <p className="text-xs text-gray-500 mb-2">
                           Due: {new Date(task.due_date).toLocaleDateString()}
                         </p>
+                      )}
+                      
+                      {task.attachment_url && (
+                        <div className="mb-2">
+                          <a 
+                            href={task.attachment_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                          >
+                            📎 {task.attachment_name || 'Attachment'}
+                          </a>
+                        </div>
                       )}
                       
                       {/* Status Change Buttons */}

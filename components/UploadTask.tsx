@@ -25,56 +25,50 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
   useEffect(() => {
     const fetchTeams = async () => {
       try {
-        // Simple teams query
-        const { data: teamsData, error: teamsError } = await supabase
+        // Fetch teams yang dibuat oleh user (hanya leader yang bisa assign)
+        const { data: teamsData } = await supabase
           .from('teams')
-          .select('id, name')
-        
-        if (teamsError) {
-          console.error('Error fetching teams:', teamsError)
-          return
-        }
+          .select('*')
+          .eq('created_by', userId)
+          .order('created_at', { ascending: false })
         
         if (teamsData) {
-          // Fetch team members separately with profile data
-          const teamsWithMembers = await Promise.all(
-            teamsData.map(async (team) => {
-              const { data: members } = await supabase
-                .from('team_members')
-                .select(`
-                  user_id,
-                  profiles(full_name, email)
-                `)
-                .eq('team_id', team.id)
-              
-              return {
-                ...team,
-                team_members: members || []
-              }
-            })
-          )
-          
-          setTeams(teamsWithMembers)
-          console.log('Teams loaded:', teamsWithMembers)
+          setTeams(teamsData)
         }
       } catch (error) {
-        console.error('Error in fetchTeams:', error)
+        setTeams([])
       }
     }
+    
     fetchTeams()
-  }, [])
+  }, [userId])
 
   // Update team members when team is selected
   useEffect(() => {
-    if (teamId) {
-      const selectedTeam = teams.find(team => team.id === teamId)
-      setTeamMembers(selectedTeam?.team_members || [])
-      setAssignedTo('') // Reset assigned user when team changes
-    } else {
-      setTeamMembers([])
-      setAssignedTo('')
+    const fetchTeamMembers = async () => {
+      if (teamId) {
+        try {
+          const { data: members } = await supabase
+            .from('team_members')
+            .select(`
+              user_id, role,
+              profiles(full_name, email)
+            `)
+            .eq('team_id', teamId)
+          
+          setTeamMembers(members || [])
+          setAssignedTo('') // Reset assigned user when team changes
+        } catch (error) {
+          setTeamMembers([])
+        }
+      } else {
+        setTeamMembers([])
+        setAssignedTo('')
+      }
     }
-  }, [teamId, teams])
+    
+    fetchTeamMembers()
+  }, [teamId])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -191,9 +185,9 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
           created_by: userId,
           assigned_to: assignedTo || null,
           team_id: teamId || null,
+          status: 'To Do',
           attachment_url: attachmentUrl,
-          attachment_name: attachmentName,
-          status: 'To Do'
+          attachment_name: attachmentName
         })
         .select()
 
@@ -288,10 +282,10 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
         <p className="text-xs text-gray-500 mt-1">Pilih tanggal deadline untuk task ini</p>
       </div>
       
-      {/* Team Selection */}
+      {/* Team Selection - Only show teams created by user */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Assign to Team (Optional)
+          Assign to My Team (Optional)
         </label>
         <select
           value={teamId}
@@ -302,10 +296,11 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
           <option value="">Personal Task</option>
           {teams.map((team) => (
             <option key={team.id} value={team.id}>
-              {team.name}
+              {team.name} (Leader)
             </option>
           ))}
         </select>
+        <p className="text-xs text-gray-500 mt-1">Only teams you created are shown</p>
       </div>
       
       {/* Team Member Assignment */}
@@ -320,13 +315,14 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
             className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
             disabled={isLoading}
           >
-            <option value="">Unassigned</option>
+            <option value="">Unassigned (Team Task)</option>
             {teamMembers.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.profiles?.full_name || member.profiles?.email || 'Team Member'}
+                {member.profiles?.full_name || member.profiles?.email || 'Team Member'} ({member.role})
               </option>
             ))}
           </select>
+          <p className="text-xs text-gray-500 mt-1">Leave unassigned for general team task</p>
         </div>
       )}
       

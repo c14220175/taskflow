@@ -9,6 +9,10 @@ type Team = {
   description: string
   created_by: string
   created_at: string
+  leader_profile?: {
+    full_name: string
+    email: string
+  }
   team_members: {
     user_id: string
     role: string
@@ -35,7 +39,17 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
 
   const fetchTeams = async () => {
     try {
-      console.log('Fetching teams...')
+      // Check if teams table exists first
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('teams')
+        .select('count')
+        .limit(1)
+      
+      if (tableError) {
+        // Teams table doesn't exist, silently disable teams feature
+        setTeams([])
+        return
+      }
       
       // Simple query first
       const { data, error } = await supabase
@@ -43,18 +57,16 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         .select('*')
         .order('created_at', { ascending: false })
 
-      console.log('Teams fetch result:', { data, error })
-
       if (error) {
-        console.error('Error fetching teams:', error)
-        alert('Failed to load teams: ' + error.message)
+        setTeams([])
         return
       }
 
       if (data) {
-        // Fetch team members separately with profile data
+        // Fetch team members and leader info separately
         const teamsWithMembers = await Promise.all(
           data.map(async (team) => {
+            // Get team members
             const { data: members } = await supabase
               .from('team_members')
               .select(`
@@ -63,18 +75,28 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
               `)
               .eq('team_id', team.id)
             
+            // Get team leader (creator) info with fallback
+            const { data: leaderProfile } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', team.created_by)
+              .single()
+            
             return {
               ...team,
-              team_members: members || []
+              team_members: members || [],
+              leader_profile: {
+                full_name: leaderProfile?.full_name || 'task0', // fallback untuk task0@gmail.com
+                email: leaderProfile?.email || 'unknown@email.com'
+              }
             }
           })
         )
         
         setTeams(teamsWithMembers)
-        console.log('Teams with members:', teamsWithMembers)
       }
     } catch (error) {
-      console.error('Unexpected error fetching teams:', error)
+      setTeams([])
     }
   }
 
@@ -85,12 +107,6 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(true)
     
     try {
-      console.log('Creating team with data:', {
-        name: newTeamName.trim(),
-        description: newTeamDescription.trim(),
-        created_by: userId
-      })
-      
       // Create team (without description for now)
       const { data: team, error: teamError } = await supabase
         .from('teams')
@@ -101,10 +117,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         .select()
         .single()
 
-      console.log('Team creation result:', { team, teamError })
-
       if (teamError) {
-        console.error('Team creation error:', teamError)
         alert('Failed to create team: ' + teamError.message)
         return
       }
@@ -119,10 +132,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
         })
         .select()
 
-      console.log('Member creation result:', { member, memberError })
-
       if (memberError) {
-        console.error('Member creation error:', memberError)
         alert('Team created but failed to add you as admin: ' + memberError.message)
       } else {
         alert('Team created successfully!')
@@ -133,8 +143,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       setShowCreateForm(false)
       fetchTeams()
     } catch (error) {
-      console.error('Unexpected error creating team:', error)
-      alert('Failed to create team: ' + error.message)
+      alert('Failed to create team')
     }
     
     setLoading(false)
@@ -161,7 +170,6 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       setShowJoinForm(false)
       fetchTeams()
     } catch (error) {
-      console.error('Error joining team:', error)
       alert('Failed to join team. Please check the team ID.')
     }
     
@@ -270,7 +278,9 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             <div className="flex justify-between items-start mb-3">
               <div>
                 <h3 className="font-semibold text-black">{team.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">Team ID: {team.id}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Leader: {team.leader_profile?.full_name || team.leader_profile?.email || 'Unknown'}
+                </p>
               </div>
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <Users size={12} />

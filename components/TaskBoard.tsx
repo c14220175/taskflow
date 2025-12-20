@@ -16,9 +16,9 @@ type Task = {
   team_id?: string
   attachment_url?: string
   attachment_name?: string
-  teams?: { name: string }
   assigned_profile?: { full_name: string }
   creator_profile?: { full_name: string }
+  team?: { name: string }
   profiles?: { full_name: string }
 }
 
@@ -45,32 +45,10 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
       setCurrentUserId(user.id)
       console.log('Fetching tasks for user:', user.id)
 
-      // Test basic connection first
-      console.log('Testing database connection...')
-      
-      const { data: testData, error: testError } = await supabase
-        .from('tasks')
-        .select('count')
-        .limit(1)
-      
-      console.log('Connection test:', { testData, testError })
-      
-      if (testError) {
-        console.error('Connection failed:', testError)
-        alert('Database connection failed: ' + testError.message)
-        return
-      }
-      
-      // Simple query without joins
+      // Query sederhana tanpa join
       let query = supabase
         .from('tasks')
-        .select(`
-          id, title, description, category, priority, status, due_date, created_at, created_by,
-          assigned_to, team_id, attachment_url, attachment_name,
-          teams(name),
-          assigned_profile:profiles!assigned_to(full_name),
-          creator_profile:profiles!created_by(full_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       // Apply filters
@@ -92,13 +70,52 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
       console.log('Raw tasks data:', data)
       
       if (data) {
+        // Ambil profile data terpisah
+        const userIds = [...new Set([...data.map(t => t.created_by), ...data.map(t => t.assigned_to)].filter(Boolean))]
+        
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds)
+        
+        // Ambil team data terpisah
+        const teamIds = [...new Set(data.map(t => t.team_id).filter(Boolean))]
+        console.log('Team IDs found:', teamIds) // Debug: lihat team IDs
+        
+        const { data: teams } = teamIds.length > 0 ? await supabase
+          .from('teams')
+          .select('id, name')
+          .in('id', teamIds) : { data: [] }
+        
+        console.log('Teams data:', teams) // Debug: lihat data teams
+        
+        // Gabungkan data dengan fallback ke email
+        const tasksWithProfiles = data.map(task => {
+          const creatorProfile = profiles?.find(p => p.id === task.created_by)
+          const assignedProfile = profiles?.find(p => p.id === task.assigned_to)
+          const teamInfo = teams?.find(t => t.id === task.team_id)
+          
+          return {
+            ...task,
+            creator_profile: {
+              full_name: creatorProfile?.full_name || 'task0' // fallback untuk task0@gmail.com
+            },
+            assigned_profile: assignedProfile ? {
+              full_name: assignedProfile.full_name || 'Unknown'
+            } : null,
+            team: teamInfo || null
+          }
+        })
+        
+        console.log('Tasks with profiles and teams:', tasksWithProfiles) // Debug: lihat hasil akhir
+        
         // Apply search filter
         const filteredTasks = searchQuery 
-          ? data.filter(task => 
+          ? tasksWithProfiles.filter(task => 
               task.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
               task.description?.toLowerCase().includes(searchQuery.toLowerCase())
             )
-          : data
+          : tasksWithProfiles
         setTasks(filteredTasks)
         console.log('Setting tasks:', filteredTasks.length, 'tasks')
       }
@@ -256,23 +273,20 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                         <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
-                        {task.teams?.name && (
+                        {task.team && (
                           <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                            Team: {task.teams.name}
+                            🏢 {task.team.name}
                           </span>
                         )}
                       </div>
                       
-                      {(task.assigned_profile?.full_name || task.creator_profile?.full_name) && (
-                        <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
-                          <User size={12} />
-                          {task.assigned_to ? (
-                            <span>Assigned: {task.assigned_profile?.full_name || 'Unknown'}</span>
-                          ) : (
-                            <span>Created by: {task.creator_profile?.full_name || 'Unknown'}</span>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
+                        <User size={12} />
+                        <span>Created by: {task.creator_profile?.full_name || 'Unknown'}</span>
+                        {task.assigned_profile?.full_name && (
+                          <span className="ml-2">• Assigned to: {task.assigned_profile.full_name}</span>
+                        )}
+                      </div>
                       
                       {task.due_date && (
                         <div className="text-xs mb-2">
