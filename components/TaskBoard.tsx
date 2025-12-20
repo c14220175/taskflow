@@ -13,8 +13,12 @@ type Task = {
   assigned_to?: string
   created_by: string
   due_date?: string
+  team_id?: string
   attachment_url?: string
   attachment_name?: string
+  teams?: { name: string }
+  assigned_profile?: { full_name: string }
+  creator_profile?: { full_name: string }
   profiles?: { full_name: string }
 }
 
@@ -60,7 +64,13 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
       // Simple query without joins
       let query = supabase
         .from('tasks')
-        .select('id, title, description, category, priority, status, due_date, created_at, created_by')
+        .select(`
+          id, title, description, category, priority, status, due_date, created_at, created_by,
+          assigned_to, team_id, attachment_url, attachment_name,
+          teams(name),
+          assigned_profile:profiles!assigned_to(full_name),
+          creator_profile:profiles!created_by(full_name)
+        `)
         .order('created_at', { ascending: false })
 
       // Apply filters
@@ -246,12 +256,21 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                         <span className={`text-xs px-2 py-1 rounded ${getPriorityColor(task.priority)}`}>
                           {task.priority}
                         </span>
+                        {task.teams?.name && (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                            Team: {task.teams.name}
+                          </span>
+                        )}
                       </div>
                       
-                      {task.profiles?.full_name && (
+                      {(task.assigned_profile?.full_name || task.creator_profile?.full_name) && (
                         <div className="flex items-center gap-1 text-xs text-gray-600 mb-2">
                           <User size={12} />
-                          {task.profiles.full_name}
+                          {task.assigned_to ? (
+                            <span>Assigned: {task.assigned_profile?.full_name || 'Unknown'}</span>
+                          ) : (
+                            <span>Created by: {task.creator_profile?.full_name || 'Unknown'}</span>
+                          )}
                         </div>
                       )}
                       
@@ -277,9 +296,24 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
                         </div>
                       )}
                       
-                      {task.attachment_name && (
-                        <div className="text-xs text-blue-600 mb-2">
-                          📎 {task.attachment_name}
+                      {task.attachment_url && task.attachment_name && (
+                        <div className="mb-2">
+                          <a 
+                            href={task.attachment_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                          >
+                            📎 {task.attachment_name}
+                          </a>
+                          {task.attachment_name.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+                            <img 
+                              src={task.attachment_url} 
+                              alt={task.attachment_name}
+                              className="mt-2 max-w-full h-auto rounded border"
+                              style={{ maxHeight: '200px' }}
+                            />
+                          )}
                         </div>
                       )}
                       

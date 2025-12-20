@@ -36,12 +36,15 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
         }
         
         if (teamsData) {
-          // Fetch team members separately
+          // Fetch team members separately with profile data
           const teamsWithMembers = await Promise.all(
             teamsData.map(async (team) => {
               const { data: members } = await supabase
                 .from('team_members')
-                .select('user_id')
+                .select(`
+                  user_id,
+                  profiles(full_name, email)
+                `)
                 .eq('team_id', team.id)
               
               return {
@@ -95,13 +98,23 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
 
   const uploadFile = async (file: File) => {
     const fileExt = file.name.split('.').pop()
-    const fileName = `${userId}-${Date.now()}.${fileExt}`
+    const fileName = `${userId}/${Date.now()}.${fileExt}`
+    
+    console.log('Uploading file:', fileName)
     
     const { data, error } = await supabase.storage
       .from('task-attachments')
-      .upload(fileName, file)
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
     
-    if (error) throw error
+    if (error) {
+      console.error('Upload error:', error)
+      throw error
+    }
+    
+    console.log('Upload successful:', data)
     return { fileName, filePath: data.path }
   }
 
@@ -127,16 +140,33 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
       let attachmentUrl = null
       let attachmentName = null
       
-      // Skip file upload for now to test basic functionality
-      // if (file) {
-      //   const { fileName, filePath } = await uploadFile(file)
-      //   const { data } = supabase.storage
-      //     .from('task-attachments')
-      //     .getPublicUrl(filePath)
-      //   
-      //   attachmentUrl = data.publicUrl
-      //   attachmentName = file.name
-      // }
+      // Upload file if provided
+      if (file) {
+        try {
+          console.log('Starting file upload...')
+          
+          // Test bucket access first
+          const { data: buckets, error: bucketError } = await supabase.storage.listBuckets()
+          console.log('Available buckets:', buckets, bucketError)
+          
+          if (bucketError) {
+            throw new Error('Cannot access storage: ' + bucketError.message)
+          }
+          
+          const { fileName, filePath } = await uploadFile(file)
+          const { data } = supabase.storage
+            .from('task-attachments')
+            .getPublicUrl(filePath)
+          
+          attachmentUrl = data.publicUrl
+          attachmentName = file.name
+          console.log('File uploaded successfully:', attachmentUrl)
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError)
+          alert('File upload failed: ' + uploadError.message + '. Task will be created without attachment.')
+          // Continue without attachment
+        }
+      }
       
       // Test if table exists first
       const { data: tableTest, error: tableError } = await supabase
@@ -161,6 +191,8 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
           created_by: userId,
           assigned_to: assignedTo || null,
           team_id: teamId || null,
+          attachment_url: attachmentUrl,
+          attachment_name: attachmentName,
           status: 'To Do'
         })
         .select()

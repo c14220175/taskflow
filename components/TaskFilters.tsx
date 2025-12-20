@@ -6,12 +6,16 @@ type TaskFiltersProps = {
   onSearchChange: (query: string) => void
   onCategoryChange: (category: string) => void
   onStatusChange: (status: string) => void
+  onPriorityChange: (priority: string) => void
+  onSortChange: (sort: string) => void
 }
 
-export default function TaskFilters({ onSearchChange, onCategoryChange, onStatusChange }: TaskFiltersProps) {
+export default function TaskFilters({ onSearchChange, onCategoryChange, onStatusChange, onPriorityChange, onSortChange }: TaskFiltersProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedStatus, setSelectedStatus] = useState('')
+  const [selectedPriority, setSelectedPriority] = useState('')
+  const [selectedSort, setSelectedSort] = useState('')
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value
@@ -31,13 +35,29 @@ export default function TaskFilters({ onSearchChange, onCategoryChange, onStatus
     onStatusChange(status)
   }
 
+  const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const priority = e.target.value
+    setSelectedPriority(priority)
+    onPriorityChange(priority)
+  }
+
+  const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const sort = e.target.value
+    setSelectedSort(sort)
+    onSortChange(sort)
+  }
+
   const clearFilters = () => {
     setSearchQuery('')
     setSelectedCategory('')
     setSelectedStatus('')
+    setSelectedPriority('')
+    setSelectedSort('')
     onSearchChange('')
     onCategoryChange('')
     onStatusChange('')
+    onPriorityChange('')
+    onSortChange('')
   }
 
   return (
@@ -85,8 +105,36 @@ export default function TaskFilters({ onSearchChange, onCategoryChange, onStatus
           </select>
         </div>
 
+        {/* Priority Filter */}
+        <div>
+          <select
+            value={selectedPriority}
+            onChange={handlePriorityChange}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+          >
+            <option value="">All Priority</option>
+            <option value="High">High Priority</option>
+            <option value="Medium">Medium Priority</option>
+            <option value="Low">Low Priority</option>
+          </select>
+        </div>
+
+        {/* Sort Filter */}
+        <div>
+          <select
+            value={selectedSort}
+            onChange={handleSortChange}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+          >
+            <option value="">Default Sort</option>
+            <option value="deadline-asc">Deadline (Urgent First)</option>
+            <option value="priority-desc">Priority (High First)</option>
+            <option value="created-desc">Newest First</option>
+          </select>
+        </div>
+
         {/* Clear Filters Button */}
-        {(searchQuery || selectedCategory || selectedStatus) && (
+        {(searchQuery || selectedCategory || selectedStatus || selectedPriority || selectedSort) && (
           <button
             onClick={clearFilters}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"

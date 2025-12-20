@@ -20,9 +20,11 @@ type TaskBoardProps = {
   searchQuery?: string
   categoryFilter?: string
   statusFilter?: string
+  priorityFilter?: string
+  sortFilter?: string
 }
 
-export default function TaskBoard({ searchQuery = '', categoryFilter = '', statusFilter = '' }: TaskBoardProps) {
+export default function TaskBoard({ searchQuery = '', categoryFilter = '', statusFilter = '', priorityFilter = '', sortFilter = '' }: TaskBoardProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string>('')
@@ -47,17 +49,41 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
     if (statusFilter) {
       query = query.eq('status', statusFilter)
     }
+    if (priorityFilter) {
+      query = query.eq('priority', priorityFilter)
+    }
 
     const { data, error } = await query
     
     if (data) {
       // Apply search filter
-      const filteredTasks = searchQuery 
+      let filteredTasks = searchQuery 
         ? data.filter(task => 
             task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             task.description?.toLowerCase().includes(searchQuery.toLowerCase())
           )
         : data
+      
+      // Apply sorting
+      if (sortFilter) {
+        filteredTasks = [...filteredTasks].sort((a, b) => {
+          switch (sortFilter) {
+            case 'deadline-asc':
+              if (!a.due_date && !b.due_date) return 0
+              if (!a.due_date) return 1
+              if (!b.due_date) return -1
+              return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+            case 'priority-desc':
+              const priorityOrder = { 'High': 3, 'Medium': 2, 'Low': 1 }
+              return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0)
+            case 'created-desc':
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            default:
+              return 0
+          }
+        })
+      }
+      
       setTasks(filteredTasks)
     }
   }
@@ -113,7 +139,7 @@ export default function TaskBoard({ searchQuery = '', categoryFilter = '', statu
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [searchQuery, categoryFilter, statusFilter])
+  }, [searchQuery, categoryFilter, statusFilter, priorityFilter, sortFilter])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

@@ -52,12 +52,15 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       }
 
       if (data) {
-        // Fetch team members separately
+        // Fetch team members separately with profile data
         const teamsWithMembers = await Promise.all(
           data.map(async (team) => {
             const { data: members } = await supabase
               .from('team_members')
-              .select('user_id, role')
+              .select(`
+                user_id, role,
+                profiles(full_name, email)
+              `)
               .eq('team_id', team.id)
             
             return {
@@ -287,7 +290,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
                   <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
                     {member.profiles?.full_name?.charAt(0) || 'U'}
                   </div>
-                  <span className="text-gray-700">{member.profiles?.full_name || 'Unknown'}</span>
+                  <span className="text-gray-700">{member.profiles?.full_name || member.profiles?.email || 'Unknown User'}</span>
                   {member.role === 'admin' && (
                     <Crown size={12} className="text-yellow-500" />
                   )}

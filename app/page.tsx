@@ -14,6 +14,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
+  const [sortFilter, setSortFilter] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export default function Home() {
               onSearchChange={setSearchQuery}
               onCategoryChange={setCategoryFilter}
               onStatusChange={setStatusFilter}
+              onPriorityChange={setPriorityFilter}
+              onSortChange={setSortFilter}
             />
             
             {/* Task Board */}
@@ -95,6 +99,8 @@ export default function Home() {
               searchQuery={searchQuery}
               categoryFilter={categoryFilter}
               statusFilter={statusFilter}
+              priorityFilter={priorityFilter}
+              sortFilter={sortFilter}
             />
           </section>
         </div>
