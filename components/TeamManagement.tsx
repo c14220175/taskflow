@@ -30,12 +30,12 @@ type TeamManagementProps = {
 export default function TeamManagement({ userId }: TeamManagementProps) {
   const [teams, setTeams] = useState<Team[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const [showJoinForm, setShowJoinForm] = useState(false)
+  const [showInviteForm, setShowInviteForm] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [newTeamName, setNewTeamName] = useState('')
   const [newTeamDescription, setNewTeamDescription] = useState('')
-  const [joinTeamId, setJoinTeamId] = useState('')
+  const [inviteEmail, setInviteEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
@@ -167,19 +167,35 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
     setLoading(false)
   }
 
-  const inviteCollaborator = async (e: React.FormEvent) => {
+  const inviteCollaborator = async (e: React.FormEvent, teamId: string) => {
     e.preventDefault()
-    if (!joinTeamId.trim()) return
+    if (!inviteEmail.trim()) return
 
     setLoading(true)
     
     try {
-      // Check if email exists in auth.users
-      const { data: userData } = await supabase.auth.admin.listUsers()
-      const userExists = userData?.users?.find(u => u.email === joinTeamId.trim())
+      // Check if email exists using RPC function
+      const { data: userExists, error: userError } = await supabase.rpc('check_user_exists', {
+        email_to_check: inviteEmail.trim()
+      })
       
-      if (!userExists) {
+      if (userError || !userExists) {
         alert('User with this email is not registered yet.')
+        setLoading(false)
+        return
+      }
+
+      // Check if already invited or member
+      const { data: existingInvite } = await supabase
+        .from('team_invitations')
+        .select('id')
+        .eq('team_id', teamId)
+        .eq('invited_email', inviteEmail.trim())
+        .eq('status', 'pending')
+        .single()
+      
+      if (existingInvite) {
+        alert('User already has a pending invitation to this team.')
         setLoading(false)
         return
       }
@@ -188,8 +204,8 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       const { error } = await supabase
         .from('team_invitations')
         .insert({
-          team_id: teams[0]?.id, // For now, invite to first team
-          invited_email: joinTeamId.trim(),
+          team_id: teamId,
+          invited_email: inviteEmail.trim(),
           invited_by: userId,
           status: 'pending'
         })
@@ -197,8 +213,8 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       if (error) throw error
 
       alert('Invitation sent successfully!')
-      setJoinTeamId('')
-      setShowJoinForm(false)
+      setInviteEmail('')
+      setShowInviteForm(null)
     } catch (error) {
       alert('Failed to send invitation.')
     }
@@ -250,13 +266,6 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             <Plus size={16} />
             Create Team
           </button>
-          <button
-            onClick={() => setShowJoinForm(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            <UserPlus size={16} />
-            Invite Collaborator
-          </button>
         </div>
       </div>
 
@@ -297,15 +306,17 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
       )}
 
       {/* Invite Collaborator Form */}
-      {showJoinForm && (
+      {showInviteForm && (
         <div className="bg-white p-4 rounded-lg shadow border">
-          <h3 className="font-semibold text-black mb-4">Invite Collaborator</h3>
-          <form onSubmit={inviteCollaborator} className="space-y-4">
+          <h3 className="font-semibold text-black mb-4">
+            Invite Collaborator to "{teams.find(t => t.id === showInviteForm)?.name}"
+          </h3>
+          <form onSubmit={(e) => inviteCollaborator(e, showInviteForm)} className="space-y-4">
             <input
               type="email"
               placeholder="Collaborator email"
-              value={joinTeamId}
-              onChange={(e) => setJoinTeamId(e.target.value)}
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded-lg text-black"
               required
             />
@@ -319,7 +330,7 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setShowJoinForm(false)}
+                onClick={() => setShowInviteForm(null)}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
               >
                 Cancel
@@ -389,12 +400,20 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             
             <div className="text-xs text-gray-500 mb-3">
               Team ID: {team.id}
-              <button
-                onClick={() => setShowDeleteConfirm(team.id)}
-                className="ml-4 text-red-600 hover:text-red-800 underline"
-              >
-                Delete Team
-              </button>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setShowInviteForm(team.id)}
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  Invite Member
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(team.id)}
+                  className="text-red-600 hover:text-red-800 underline"
+                >
+                  Delete Team
+                </button>
+              </div>
             </div>
             
             {/* Team Members */}
