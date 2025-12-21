@@ -12,7 +12,11 @@ type Stats = {
   priorityStats: { [key: string]: number }
 }
 
-export default function DashboardStats() {
+type DashboardStatsProps = {
+  userId: string
+}
+
+export default function DashboardStats({ userId }: DashboardStatsProps) {
   const [stats, setStats] = useState<Stats>({
     totalTasks: 0,
     completedTasks: 0,
@@ -27,6 +31,7 @@ export default function DashboardStats() {
     const { data, error } = await supabase
       .from('tasks')
       .select('status, category, priority')
+      .eq('created_by', userId)
     
     if (data) {
       const totalTasks = data.length

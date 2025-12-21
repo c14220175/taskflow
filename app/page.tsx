@@ -69,7 +69,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <section className="mb-8">
           <h2 className="text-lg font-semibold mb-4 text-black">Overview</h2>
-          <DashboardStats />
+          <DashboardStats userId={user.id} />
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

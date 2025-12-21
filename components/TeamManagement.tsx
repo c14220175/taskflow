@@ -385,20 +385,22 @@ export default function TeamManagement({ userId }: TeamManagementProps) {
             
             <div className="text-xs text-gray-500 mb-3">
               Team ID: {team.id}
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => setShowInviteForm(team.id)}
-                  className="text-blue-600 hover:text-blue-800 underline"
-                >
-                  Invite Member
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(team.id)}
-                  className="text-red-600 hover:text-red-800 underline"
-                >
-                  Delete Team
-                </button>
-              </div>
+              {team.created_by === userId && (
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => setShowInviteForm(team.id)}
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Invite Member
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(team.id)}
+                    className="text-red-600 hover:text-red-800 underline"
+                  >
+                    Delete Team
+                  </button>
+                </div>
+              )}
             </div>
             
             {/* Team Members */}

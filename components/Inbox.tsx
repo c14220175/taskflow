@@ -13,7 +13,7 @@ type Invitation = {
   teams: {
     name: string
   }
-  inviter_profile: {
+  profiles: {
     full_name: string
     email: string
   }
@@ -31,22 +31,52 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
 
   const fetchInvitations = async () => {
     try {
-      console.log('Fetching invitations for email:', userEmail) // Debug log
+      console.log('Fetching invitations for email:', userEmail)
       
       const { data, error } = await supabase
         .from('team_invitations')
-        .select(`
-          *,
-          teams(name)
-        `)
+        .select('*')
         .eq('invited_email', userEmail)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
 
-      console.log('Invitations query result:', { data, error }) // Debug log
+      console.log('Invitations query result:', { data, error })
 
-      if (data) {
-        setInvitations(data)
+      if (data && data.length > 0) {
+        // Get team and inviter info for each invitation
+        const enrichedInvitations = await Promise.all(
+          data.map(async (invitation) => {
+            console.log('Processing invitation:', invitation)
+            
+            // Get team name with error handling
+            const { data: teamData, error: teamError } = await supabase
+              .from('teams')
+              .select('name')
+              .eq('id', invitation.team_id)
+              .maybeSingle()
+            
+            console.log('Team query:', { teamData, teamError, teamId: invitation.team_id })
+            
+            // Get inviter info with error handling
+            const { data: inviterData, error: inviterError } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', invitation.invited_by)
+              .maybeSingle()
+            
+            console.log('Inviter query:', { inviterData, inviterError, inviterId: invitation.invited_by })
+            
+            return {
+              ...invitation,
+              teams: teamData || { name: `Team ${invitation.team_id.slice(0, 8)}` },
+              profiles: inviterData || { full_name: 'Team Leader', email: '' }
+            }
+          })
+        )
+        
+        setInvitations(enrichedInvitations)
+      } else {
+        setInvitations([])
       }
     } catch (error) {
       console.error('Error fetching invitations:', error)
@@ -115,10 +145,10 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
           <div className="flex justify-between items-start mb-3">
             <div>
               <h4 className="font-medium text-black">
-                Invitation to join "{invitation.teams?.name}"
+                Invitation to join "{invitation.teams?.name || 'Loading...'}"
               </h4>
               <p className="text-sm text-gray-600 mt-1">
-                From: Team Leader
+                From: {invitation.profiles?.full_name || invitation.profiles?.email || 'Loading...'}
               </p>
               <p className="text-xs text-gray-500 mt-1">
                 {new Date(invitation.created_at).toLocaleDateString()}

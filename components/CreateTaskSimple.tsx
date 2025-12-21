@@ -22,7 +22,7 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
     setIsLoading(true)
     
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tasks')
         .insert({
           title: title.trim(),
@@ -33,18 +33,25 @@ export default function CreateTaskForm({ userId }: CreateTaskFormProps) {
           created_by: userId,
           status: 'To Do'
         })
+        .select()
 
-      if (!error) {
-        // Reset form
-        setTitle('')
-        setDescription('')
-        setCategory('Personal')
-        setPriority('Medium')
-        setDueDate('')
+      if (error) {
+        console.error('Supabase error:', error)
+        alert(`Failed to create task: ${error.message}`)
+        return
       }
+
+      // Success - reset form
+      setTitle('')
+      setDescription('')
+      setCategory('Personal')
+      setPriority('Medium')
+      setDueDate('')
+      alert('Task created successfully!')
+      
     } catch (error) {
-      console.error('Error creating task:', error)
-      alert('Failed to create task')
+      console.error('Table access error:', error)
+      alert('Failed to access database. Please check your connection.')
     }
     
     setIsLoading(false)
