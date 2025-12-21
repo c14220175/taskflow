@@ -26,9 +26,17 @@ type TaskBoardProps = {
   searchQuery?: string
   categoryFilter?: string
   statusFilter?: string
+  priorityFilter?: string
+  sortFilter?: string
 }
 
-export default function TaskBoard({ searchQuery = '', categoryFilter = '', statusFilter = '' }: TaskBoardProps) {
+export default function TaskBoard({ 
+  searchQuery = '', 
+  categoryFilter = '', 
+  statusFilter = '',
+  priorityFilter = '',
+  sortFilter = ''
+}: TaskBoardProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string>('')
