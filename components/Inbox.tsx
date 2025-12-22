@@ -30,6 +30,8 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
   const supabase = createClient()
 
   const fetchInvitations = async () => {
+    if (!userEmail) return
+
     try {
       const { data, error } = await supabase
         .from('team_invitations')
@@ -46,13 +48,13 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
               .select('name')
               .eq('id', invitation.team_id)
               .maybeSingle()
-            
+
             const { data: inviterData } = await supabase
               .from('profiles')
               .select('full_name, email')
               .eq('id', invitation.invited_by)
               .maybeSingle()
-            
+
             return {
               ...invitation,
               teams: teamData || { name: `Team ${invitation.team_id.slice(0, 8)}` },
@@ -60,7 +62,7 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
             }
           })
         )
-        
+
         setInvitations(enrichedInvitations)
       } else {
         setInvitations([])
@@ -72,11 +74,11 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
 
   const respondToInvitation = async (invitationId: string, response: 'accepted' | 'rejected') => {
     setLoading(true)
-    
+
     try {
       const { error: updateError } = await supabase
         .from('team_invitations')
-        .update({ 
+        .update({
           status: response,
           responded_at: new Date().toISOString()
         })
@@ -99,17 +101,39 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
         }
       }
 
-      alert(response === 'accepted' ? 'Invitation accepted!' : 'Invitation rejected.')
       fetchInvitations()
     } catch (error) {
       alert('Failed to respond to invitation.')
     }
-    
+
     setLoading(false)
   }
 
   useEffect(() => {
     fetchInvitations()
+
+    if (!userEmail) return
+
+    const channel = supabase
+      .channel('inbox-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen Insert, Update, Delete
+          schema: 'public',
+          table: 'team_invitations',
+          filter: `invited_email=eq.${userEmail}` // HANYA dengarkan invite untuk email saya
+        },
+        (payload) => {
+          console.log('Realtime Inbox update:', payload)
+          fetchInvitations()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [userEmail])
 
   if (invitations.length === 0) {
@@ -124,9 +148,9 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
   return (
     <div className="space-y-4">
       <h3 className="font-semibold text-black">Team Invitations</h3>
-      
+
       {invitations.map((invitation) => (
-        <div key={invitation.id} className="bg-white p-4 rounded-lg shadow border">
+        <div key={invitation.id} className="bg-white p-4 rounded-lg shadow-sm border border-blue-100">
           <div className="flex justify-between items-start mb-3">
             <div>
               <h4 className="font-medium text-black">
@@ -140,12 +164,12 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
               </p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => respondToInvitation(invitation.id, 'accepted')}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 transition-colors shadow-sm"
             >
               <Check size={14} />
               Accept
@@ -153,7 +177,7 @@ export default function Inbox({ userId, userEmail }: InboxProps) {
             <button
               onClick={() => respondToInvitation(invitation.id, 'rejected')}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-md text-sm hover:bg-red-50 disabled:opacity-50 transition-colors"
             >
               <X size={14} />
               Reject

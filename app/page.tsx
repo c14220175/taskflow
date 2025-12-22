@@ -21,7 +21,7 @@ export default function Home() {
   useEffect(() => {
     const getUser = async () => {
       const { data: { user }, error } = await supabase.auth.getUser()
-      
+
       if (error || !user) {
         redirect('/login')
       } else {
@@ -82,20 +82,23 @@ export default function Home() {
 
           <section className="lg:col-span-3">
             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-lg font-semibold text-black">My Tasks</h2>
+              <h2 className="text-lg font-semibold text-black">My Tasks</h2>
             </div>
-            
-            {/* Search and Filters */}
-            <TaskFilters 
+
+            <TaskFilters
               onSearchChange={setSearchQuery}
               onCategoryChange={setCategoryFilter}
               onStatusChange={setStatusFilter}
               onPriorityChange={setPriorityFilter}
               onSortChange={setSortFilter}
+              searchQuery={searchQuery}
+              categoryFilter={categoryFilter}
+              statusFilter={statusFilter}
+              priorityFilter={priorityFilter}
+              sortFilter={sortFilter}
             />
-            
-            {/* Task Board */}
-            <TaskBoard 
+
+            <TaskBoard
               searchQuery={searchQuery}
               categoryFilter={categoryFilter}
               statusFilter={statusFilter}

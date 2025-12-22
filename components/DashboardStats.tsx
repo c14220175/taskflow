@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { CheckCircle, Clock, AlertCircle, BarChart3 } from 'lucide-react'
 
@@ -27,61 +27,101 @@ export default function DashboardStats({ userId }: DashboardStatsProps) {
   })
   const supabase = createClient()
 
-  const fetchStats = async () => {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('status, category, priority')
-      .eq('created_by', userId)
-    
-    if (data) {
-      const totalTasks = data.length
-      const completedTasks = data.filter(task => task.status === 'Done').length
-      const inProgressTasks = data.filter(task => task.status === 'In Progress').length
-      const todoTasks = data.filter(task => task.status === 'To Do').length
-      
-      // Category statistics
-      const categoryStats = data.reduce((acc, task) => {
-        acc[task.category] = (acc[task.category] || 0) + 1
-        return acc
-      }, {} as { [key: string]: number })
-      
-      // Priority statistics
-      const priorityStats = data.reduce((acc, task) => {
-        acc[task.priority] = (acc[task.priority] || 0) + 1
-        return acc
-      }, {} as { [key: string]: number })
-      
-      setStats({
-        totalTasks,
-        completedTasks,
-        inProgressTasks,
-        todoTasks,
-        categoryStats,
-        priorityStats
-      })
+  const fetchStats = useCallback(async () => {
+    if (!userId) return
+
+    try {
+      const { data: myMemberships } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', userId)
+
+      const membershipTeamIds = myMemberships?.map(m => m.team_id) || []
+
+      const { data: myCreatedTeams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('created_by', userId)
+
+      const createdTeamIds = myCreatedTeams?.map(t => t.id) || []
+
+      const allRelevantTeamIds = [...new Set([...membershipTeamIds, ...createdTeamIds])]
+
+      let query = supabase
+        .from('tasks')
+        .select('status, category, priority, created_by, assigned_to, team_id')
+
+      let orCondition = `created_by.eq.${userId},assigned_to.eq.${userId}`
+
+      if (allRelevantTeamIds.length > 0) {
+        orCondition += `,team_id.in.(${allRelevantTeamIds.join(',')})`
+      }
+
+      const { data, error } = await query.or(orCondition)
+
+      if (error) {
+        console.error('Error fetching stats:', error)
+        return
+      }
+
+      if (data) {
+        const totalTasks = data.length
+        const completedTasks = data.filter(task => task.status === 'Done').length
+        const inProgressTasks = data.filter(task => task.status === 'In Progress').length
+        const todoTasks = data.filter(task => task.status === 'To Do').length
+
+        const categoryStats = data.reduce((acc, task) => {
+          const cat = task.category || 'Uncategorized'
+          acc[cat] = (acc[cat] || 0) + 1
+          return acc
+        }, {} as { [key: string]: number })
+
+        const priorityStats = data.reduce((acc, task) => {
+          const prio = task.priority || 'No Priority'
+          acc[prio] = (acc[prio] || 0) + 1
+          return acc
+        }, {} as { [key: string]: number })
+
+        setStats({
+          totalTasks,
+          completedTasks,
+          inProgressTasks,
+          todoTasks,
+          categoryStats,
+          priorityStats
+        })
+      }
+    } catch (err) {
+      console.error('Fetch stats error:', err)
     }
-  }
+  }, [userId, supabase])
 
   useEffect(() => {
     fetchStats()
 
     const channel = supabase
       .channel('stats-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetchStats()
-      })
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks'
+        },
+        () => {
+          fetchStats()
+        }
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [fetchStats, supabase])
 
   const completionRate = stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0
 
   return (
     <div className="space-y-6">
-      {/* Main Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow border">
           <div className="flex items-center justify-between">
@@ -92,7 +132,7 @@ export default function DashboardStats({ userId }: DashboardStatsProps) {
             <BarChart3 className="text-blue-600" size={24} />
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
@@ -102,7 +142,7 @@ export default function DashboardStats({ userId }: DashboardStatsProps) {
             <AlertCircle className="text-gray-600" size={24} />
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
@@ -112,7 +152,7 @@ export default function DashboardStats({ userId }: DashboardStatsProps) {
             <Clock className="text-yellow-600" size={24} />
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
@@ -123,50 +163,54 @@ export default function DashboardStats({ userId }: DashboardStatsProps) {
           </div>
         </div>
       </div>
-      
-      {/* Progress Bar */}
+
       <div className="bg-white p-4 rounded-lg shadow border">
         <div className="flex justify-between items-center mb-2">
           <h3 className="font-semibold text-black">Completion Rate</h3>
           <span className="text-sm font-medium text-gray-600">{completionRate}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
+          <div
             className="bg-green-600 h-2 rounded-full transition-all duration-300"
             style={{ width: `${completionRate}%` }}
           ></div>
         </div>
       </div>
-      
-      {/* Category & Priority Stats */}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Category Stats */}
         <div className="bg-white p-4 rounded-lg shadow border">
           <h3 className="font-semibold text-black mb-3">Tasks by Category</h3>
           <div className="space-y-2">
-            {Object.entries(stats.categoryStats).map(([category, count]) => (
-              <div key={category} className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">{category}</span>
-                <span className="text-sm font-medium text-black">{count}</span>
-              </div>
-            ))}
+            {Object.entries(stats.categoryStats).length > 0 ? (
+              Object.entries(stats.categoryStats).map(([category, count]) => (
+                <div key={category} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{category}</span>
+                  <span className="text-sm font-medium text-black">{count}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-400 italic">No category data</p>
+            )}
           </div>
         </div>
-        
-        {/* Priority Stats */}
+
         <div className="bg-white p-4 rounded-lg shadow border">
           <h3 className="font-semibold text-black mb-3">Tasks by Priority</h3>
           <div className="space-y-2">
-            {Object.entries(stats.priorityStats).map(([priority, count]) => {
-              const colorClass = priority === 'High' ? 'text-red-600' : 
-                               priority === 'Medium' ? 'text-yellow-600' : 'text-green-600'
-              return (
-                <div key={priority} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">{priority}</span>
-                  <span className={`text-sm font-medium ${colorClass}`}>{count}</span>
-                </div>
-              )
-            })}
+            {Object.entries(stats.priorityStats).length > 0 ? (
+              Object.entries(stats.priorityStats).map(([priority, count]) => {
+                const colorClass = priority === 'High' ? 'text-red-600' :
+                  priority === 'Medium' ? 'text-yellow-600' : 'text-green-600'
+                return (
+                  <div key={priority} className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">{priority}</span>
+                    <span className={`text-sm font-medium ${colorClass}`}>{count}</span>
+                  </div>
+                )
+              })
+            ) : (
+              <p className="text-sm text-gray-400 italic">No priority data</p>
+            )}
           </div>
         </div>
       </div>
